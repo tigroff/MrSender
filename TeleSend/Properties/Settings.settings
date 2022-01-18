@@ -1,0 +1,21 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="TeleSend.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="ProxyHost" Type="System.String" Scope="User">
+      <Value Profile="(Default)">proxy.nafta.priv</Value>
+    </Setting>
+    <Setting Name="ProxyPort" Type="System.Decimal" Scope="User">
+      <Value Profile="(Default)">3128</Value>
+    </Setting>
+    <Setting Name="ProxyUser" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ProxyPassword" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="BotToken" Type="System.String" Scope="User">
+      <Value Profile="(Default)">683170386:AAHyiFXI8Uhkyv8NITbz6Py6V-Fp_yrr7Fs</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

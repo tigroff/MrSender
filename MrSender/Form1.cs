@@ -1,0 +1,677 @@
+﻿using MrSender.Properties;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.Security;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Mail;
+using System.Net.Mime;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Telegram.Bot;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.InputFiles;
+
+
+
+namespace MrSender
+{
+
+    public partial class Form1 : Form
+    {
+        private const string _defaultPath = @"C:\Soft\Koresh";
+        //test_bot - "1846625231:AAHEHYdFs6gFp-anJwIvUKId2tQ9Q0Bdc9E"
+        //utn_bot - "683170386:AAHyiFXI8Uhkyv8NITbz6Py6V-Fp_yrr7Fs"
+        private TelegramBotClient _bot;
+        private string[] _fileList;
+        private Dictionary<string, string> _passwords = new Dictionary<string, string>();
+        private string _passwordFile = Settings.Default.RemotePath + "\\passwords.cfg";
+        private bool _emergencyStop = false;
+        private bool _imWorking = false;
+        bool minimizedToTray;
+        private HttpClient _client;
+        private HttpClientHandler handler;
+        private WebProxy proxy;
+        private string _logFile = $"{Settings.Default.RemotePath}\\Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log";
+        private Encoding _defaultEnc = Encoding.GetEncoding("windows-1251");
+        private bool _canWriteToPath = false;
+
+        //public static bool IsValidEmail(string email)
+        //{
+        //    if (!MailAddress.TryCreate(email, out var mailAddress))
+        //        return false;
+
+        //    // And if you want to be more strict:
+        //    var hostParts = mailAddress.Host.Split('.');
+        //    if (hostParts.Length == 1)
+        //        return false; // No dot.
+        //    if (hostParts.Any(p => p == string.Empty))
+        //        return false; // Double dot.
+        //    if (hostParts[^1].Length < 2)
+        //        return false; // TLD only one letter.
+
+        //    if (mailAddress.User.Contains(' '))
+        //        return false;
+        //    if (mailAddress.User.Split('.').Any(p => p == string.Empty))
+        //        return false; // Double dot or dot at end of user part.
+
+        //    return true;
+        //}
+
+        protected override void WndProc(ref Message message)
+        {
+            if (message.Msg == SingleInstance.WM_SHOWFIRSTINSTANCE)
+            {
+                ShowWindow();
+            }
+            base.WndProc(ref message);
+        }
+
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void InitializeBot()
+        {
+            if (!string.IsNullOrWhiteSpace(Settings.Default.ProxyHost))
+            {
+                proxy = new WebProxy
+                {
+                    Address = new Uri($"http://{Settings.Default.ProxyHost}:{Settings.Default.ProxyPort.ToString()}"),
+                    BypassProxyOnLocal = false,
+                    UseDefaultCredentials = false,
+
+                    // *** These creds are given to the proxy server, not the web server ***
+                    Credentials = new NetworkCredential(
+                        userName: Settings.Default.ProxyUser,
+                        password: Settings.Default.ProxyPassword)
+                };
+                handler = new HttpClientHandler {Proxy = proxy};
+                _client = new HttpClient(handler);
+
+                //_bot = new TelegramBotClient(Settings.Default.BotToken);
+                _bot = new TelegramBotClient(Settings.Default.BotToken, _client);
+            }
+            else
+            {
+                _bot = new TelegramBotClient(Settings.Default.BotToken);
+            }
+        }
+
+        private void WriteLog(string text)
+        {
+            AppendLog($"{DateTime.Now} - {text}{Environment.NewLine}");
+        }
+
+        private void WriteLog(string pernr, string text)
+        {
+            AppendLog($"{DateTime.Now} - т.н.{pernr} - {text}{Environment.NewLine}");
+        }
+
+        private void AppendLog(string text)
+        {
+            LogBox.Text += text;
+            if (_canWriteToPath)
+            {
+                File.AppendAllText(_logFile, text, _defaultEnc); 
+            }
+            if (checkBoxLog.Checked)
+            {
+                LogBox.SelectionStart = LogBox.Text.Length;
+                LogBox.ScrollToCaret(); 
+            }
+        }
+
+        private async Task SendMessage(string pernr, long chatId, string text)
+        {
+            try
+            {
+                await _bot.SendTextMessageAsync(chatId, text, ParseMode.Html);
+                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - сообщение успешно отправлено");
+            }
+            catch (Exception er)
+            {
+                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message}");
+            }
+        }
+
+        private async Task SendFile(string pernr, long chatId, string filePath)
+        {
+            try
+            {
+                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    var fileName = filePath.Split(Path.DirectorySeparatorChar).Last();
+                    await _bot.SendPhotoAsync(
+                        chatId: chatId,
+                        photo: new InputOnlineFile(fileStream, fileName)
+                    //caption: "Nice Picture"
+                    );
+                }
+                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - файл успешно отправлен"); 
+            }
+            catch (Exception er)
+            {
+                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message}");
+            }
+        }
+
+        private async Task SendPhoto(string pernr, long chatId, Bitmap bmp)
+        {
+            try
+            {
+                using (MemoryStream memStream = new MemoryStream())
+                {
+                    bmp.Save(memStream, System.Drawing.Imaging.ImageFormat.Jpeg);
+                    memStream.Position = 0;
+                    await _bot.SendPhotoAsync(
+                        chatId: chatId,
+                        photo: memStream
+                    );
+                }
+                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - изображение успешно отправлено");
+            }
+            catch (Exception er)
+            {
+                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message} {er.InnerException?.InnerException?.Message}");
+            }
+        }
+
+        private async Task SendMail(string element)
+        {
+            string body = "Доброго дня!<br><br>" +
+            "Цей лист сформовано автоматично, не відповідайте на нього. <br><br>" +
+            "Ваш розрахунковий листок знаходиться у прикріпленому до цього листа файлі. <br><br>" +
+            "Якщо Ви ще не отримували пароль, то спробуйте '123qaz' (без лапок).<br>" +
+            "Отримати новий чи відновити втрачений пароль можна кожного дня у Вашого бухгалтера. <br>" +
+            "Будь-ласка з 8:00 до 17:00 (п'ятниця до 15:45), окрім вихідних та свят.<br><br>" +
+            "Набридло вводити щоразу пароль? Встановіть собі месенджер <a href=\"https://telegram.org/\">Telegram</a> та під'єднайтеся <br>" +
+            "до офіційного <a href=\"https://t.me/ukrtatnafta_bot\">чат-бота</a>. Обов'язково повідомте про це Вашого бухгалтера!<br><br>" +
+            "Гарного дня!";
+
+            if (!string.IsNullOrWhiteSpace(textMsg.Text)) body += $"<br><br>P.S. {textMsg.Text}";
+#if DEBUG
+            string subj = PernrName(element);
+#else
+            string subj = AttachmentName(element); 
+#endif
+
+            var client = new SmtpClient();
+            var message = new MailMessage();
+            Attachment data = new Attachment(ConvertToPdf(element), AttachmentName(element)+".pdf", MediaTypeNames.Application.Pdf);
+
+            client.Host = Settings.Default.SmtpHost;
+            client.Port = Convert.ToInt16(Settings.Default.SmtpPort);
+            client.Credentials = new NetworkCredential(Settings.Default.SmtpUser, Settings.Default.SmtpPassword);
+            client.Timeout = 10000;
+
+            message.From = new MailAddress(Settings.Default.SmptFrom, "ПАТ 'Укртатнафта'", Encoding.Default);
+#if DEBUG
+            message.To.Add(new MailAddress("koreshock@ukrtatnafta.com"));
+#else
+            message.To.Add(new MailAddress(Path.GetFileNameWithoutExtension(element).Trim()));
+#endif
+
+            message.Subject = subj;
+            message.IsBodyHtml = true;
+            message.Body = body;
+            message.Attachments.Add(data);
+            message.Priority = MailPriority.High;
+
+            try
+            {
+#if !DEBUG
+                await client.SendMailAsync(message);
+#endif
+                if (!checkLog.Checked) WriteLog(PernrName(element), $"{message.To} - письмо успешно отправлено");
+#if !DEBUG
+                await Task.Delay(Convert.ToInt16(1000 / mailCount.Value));
+#endif
+            }
+            catch (Exception ex)
+            {
+                WriteLog(PernrName(element), $"{ex.Message}");
+            }
+            finally
+            {
+                message.Attachments.Dispose();
+                DeleteFile(element);
+            }
+        }
+
+        private void DeleteFile(string element)
+        {
+            try
+            {
+                File.Delete(element);
+            }
+            catch
+            {
+                WriteLog($"Невозможно удалить файл {element}");
+            }
+        }
+
+        private async Task TelegramSend(string element)
+        {
+            try
+            {
+                string text = File.ReadAllText(element, _defaultEnc).TrimEnd();
+                long chatId = Convert.ToInt64(Path.GetFileNameWithoutExtension(element).Trim());
+                Bitmap bmp = new Bitmap(1, 1);
+                Graphics graphics = Graphics.FromImage(bmp);
+                Font font = new Font(Settings.Default.FontName, Settings.Default.FontSize);
+                SizeF stringSize = graphics.MeasureString(text, font);
+                bmp = new Bitmap(bmp, (int)stringSize.Width, (int)stringSize.Height);
+                graphics = Graphics.FromImage(bmp);
+                graphics.Clear(Color.White);
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                //graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                //graphics.DrawString(txt, font, new SolidBrush(Color.FromArgb(0, 0, 0)), 0, 0);
+                graphics.DrawString(text, font, Brushes.Black, 0, 0);
+                font.Dispose();
+                graphics.Flush();
+                graphics.Dispose();
+
+                if (!string.IsNullOrWhiteSpace(textMsg.Text))
+                {
+                    await SendMessage(element,chatId, textMsg.Text);
+                }
+                await SendPhoto(element,chatId, bmp);
+
+                await Task.Delay(Convert.ToInt16(1000 / MessageCount.Value));
+            }
+            catch (Exception er)
+            {
+                WriteLog(PernrName(element),er.Message);
+            }
+        }
+
+        private async void btnSend_Click(object sender, EventArgs e)
+        {
+            btnSend.Enabled = false;
+            btnStop.Enabled = true;
+            btnReload.Enabled = false;
+            _imWorking = true;
+            int count = 0;
+            int total = _fileList.Length;
+            FillPasswords();
+                       
+            try
+            {
+                foreach (string element in _fileList)
+                {
+                    if (!_emergencyStop)
+                    {
+                        if (element.Contains("@"))
+                        {
+                            await SendMail(element);
+                        }
+                        else
+                        {
+                            await TelegramSend(element);
+                            DeleteFile(element);
+                        }
+                        count++;
+                        toolStripStatusLabel1.Text = $"{count} файлов из {total} обработано.";
+                        statusStrip1.Refresh();
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception er)
+            {
+                WriteLog(er.Message);
+            }
+
+
+            if (!_emergencyStop)
+            {
+                WriteLog("<Конец рассылки>");
+                DeleteFile(_passwordFile);
+            }
+            else
+            {
+                Array.Clear(_fileList, 0, total);
+                WriteLog("<Рассылка прервана пользователем>");
+            }
+            _passwords.Clear();
+            _emergencyStop = false;
+            btnReload.Enabled = true;
+            btnStop.Enabled = false;
+            _imWorking = false;
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            
+            if (NoSettingsError(Settings.Default.BotToken, "Токен telegram бота не заполнен!")
+                & NoSettingsError(Settings.Default.SmtpHost, "SMTP хост не заполнен!")
+                & NoSettingsError(Settings.Default.SmtpUser, "SMTP user не указан!")
+                & NoSettingsError(Settings.Default.SmtpPort.ToString(), "SMTP порт не заполнен!"))
+            {
+                InitializeBot();
+                LoadFiles();
+                _canWriteToPath = DirectoryHasPermission(RemotePath.Text, FileSystemRights.Write);
+                if (!_canWriteToPath) 
+                    WriteLog($"Нет прав записи в каталог {RemotePath.Text}!"); 
+            }
+            else
+            {
+                btnReload.Enabled = false;
+                btnReload.Enabled = false;
+                btnSend.Enabled = false;
+            }
+        }
+
+        private bool NoSettingsError(string element, string message)
+        {
+            if (string.IsNullOrWhiteSpace(element))
+            {
+                WriteLog($"{message} Рассылка невозможна.");
+                return false;
+            }
+            return true;
+        }
+
+        private void LoadFiles()
+        {
+            if (string.IsNullOrWhiteSpace(RemotePath.Text))
+                RemotePath.Text = _defaultPath;
+            
+            if (!Directory.Exists(RemotePath.Text))
+            {
+                try
+                {
+                    Directory.CreateDirectory(RemotePath.Text);
+                }
+                catch
+                {
+                    WriteLog($"Невозможно создать каталог {RemotePath.Text}. Обратитесь к системному администратору.");
+                    RemotePath.Text = "C:\\";
+                };
+            }
+            
+            _fileList = Directory.GetFiles(RemotePath.Text, "*.txt");
+
+            string telegramPattern = @"\d+";
+            //string emailPattern = @"^(?("")(""[^""]+?""@)|(([0-9a-z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-z])@))(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-z][-\w]*[0-9a-z]*\.)+[a-z0-9]{2,17}))$";
+            string emailPattern = @"^([\w\.\-]+)@([\w\-]+)((\.(\w){2,3})+)$";
+
+            _fileList = _fileList.Where(fileName =>
+            {
+                fileName = Path.GetFileNameWithoutExtension(fileName).Trim();
+                return Regex.IsMatch(fileName, telegramPattern, RegexOptions.IgnoreCase) | Regex.IsMatch(fileName, emailPattern, RegexOptions.IgnoreCase);
+            }).ToArray();
+
+            if (_fileList.Length > 0)
+            {
+                btnSend.Enabled = true;
+                toolStripStatusLabel1.Text = string.Concat(_fileList.Length, " файла(ов) для рассылки.");
+            }
+            else
+            {
+                btnSend.Enabled = false;
+                toolStripStatusLabel1.Text = "Нет файлов для рассылки.";
+            }
+        }
+
+        public static bool DirectoryHasPermission(string DirectoryPath, FileSystemRights AccessRight)
+        {
+            if (string.IsNullOrEmpty(DirectoryPath)) return false;
+
+            try
+            {
+                AuthorizationRuleCollection rules = Directory.GetAccessControl(DirectoryPath).GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier));
+                WindowsIdentity identity = WindowsIdentity.GetCurrent();
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    if (identity.Groups.Contains(rule.IdentityReference))
+                    {
+                        if ((AccessRight & rule.FileSystemRights) == AccessRight)
+                        {
+                            if (rule.AccessControlType == AccessControlType.Allow)
+                                return true;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            //if ((LogBox.Text.Length > 0) && (DirectoryHasPermission(RemotePath.Text, FileSystemRights.Write)))
+            //    File.WriteAllText($"{RemotePath.Text}\\Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log", LogBox.Text);
+            Settings.Default.Save();
+        }
+
+        private void btnReload_Click(object sender, EventArgs e)
+        {
+            LoadFiles();
+        }
+
+        private void btnPath_Click(object sender, EventArgs e)
+        {
+            folderBrowser.ShowDialog();
+            RemotePath.Text = folderBrowser.SelectedPath;
+            LoadFiles();
+        }
+
+        private MemoryStream ConvertToPdf(string element)
+        {
+            int FontSize = 8;
+            string FontName = "Courier New";
+            //string filename;
+            var stream = new MemoryStream();
+
+            var logFile = File.ReadAllLines(element, _defaultEnc);
+
+            using (PdfDocument document = new PdfDocument())
+            {
+                LayoutHelper helper = new LayoutHelper(document, XUnit.FromCentimeter(1), XUnit.FromCentimeter(21 - 1));
+                XUnit left = XUnit.FromCentimeter(1);
+                document.Info.Title = AttachmentName(element);
+                document.Info.Author = "ПАТ 'Укртатнафта'";
+
+                XFont font = new XFont(FontName, FontSize);
+
+                foreach (string line in logFile)
+                {
+                    XUnit top = helper.GetLinePosition(FontSize, FontSize + 5);
+                    helper.Gfx.DrawString(line, font, XBrushes.Black, left, top, XStringFormats.TopLeft);
+                }
+
+                helper.Gfx.Dispose();
+                string watermark = "конфіденційно";
+                XFont font1 = new XFont("Verdana", 80);
+                var gfx = XGraphics.FromPdfPage(helper.Page, XGraphicsPdfPageOptions.Prepend);
+                var size = gfx.MeasureString(watermark, font1);
+
+                gfx.TranslateTransform(helper.Page.Width / 2, helper.Page.Height / 2);
+                gfx.RotateTransform(-Math.Atan(helper.Page.Height / helper.Page.Width) * 180 / Math.PI);
+                gfx.TranslateTransform(-helper.Page.Width / 2, -helper.Page.Height / 2);
+
+                var format = new XStringFormat();
+                format.Alignment = XStringAlignment.Near;
+                format.LineAlignment = XLineAlignment.Near;
+
+                XBrush brush = new XSolidBrush(XColor.FromArgb(40, 255, 0, 0));
+
+                gfx.DrawString(watermark, font1, brush, new XPoint((helper.Page.Width - size.Width) / 2, (helper.Page.Height - size.Height) / 2), format);
+
+                PdfSecuritySettings securitySettings = document.SecuritySettings;
+
+                securitySettings.UserPassword = GetPassword(element);
+                securitySettings.OwnerPassword = "b[8sr}$TyC";
+
+                securitySettings.PermitAccessibilityExtractContent = false;
+                securitySettings.PermitAnnotations = false;
+                securitySettings.PermitAssembleDocument = false;
+                securitySettings.PermitExtractContent = false;
+                securitySettings.PermitFormsFill = false;
+                securitySettings.PermitFullQualityPrint = true;
+                securitySettings.PermitModifyDocument = false;
+                securitySettings.PermitPrint = true;
+
+                //filename = AttachmentName(element);
+                //document.Save(filename);
+
+                document.Save(stream);
+            }
+            //return filename;
+            return stream;
+        }
+
+        public string AttachmentName(string s)
+        {
+            try
+            {
+                File.ReadAllLines(s, _defaultEnc).AsParallel()
+                .ForAll(pair =>
+                {
+                    pair.Trim();
+                    int a = pair.IndexOf("р.");
+                    if ((a > 0) && (pair.Length > 0) && (pair.StartsWith("РОЗРАХУНКОВИЙ")))
+                        s = pair.Substring(0, a).ToLower().Trim();
+                });
+            }
+            catch (Exception er)
+            {
+                WriteLog(er.Message);
+            }
+          
+            if (s.Length > 0) return (char.ToUpper(s[0]) + s.Substring(1));
+            else return "Розрахунковий листок";
+        }
+
+        public string PernrName(string s)
+        {
+            File.ReadAllLines(s, _defaultEnc).AsParallel()
+                .ForAll(pair =>
+                {
+                    pair.Trim();
+                    if ((pair.Length > 0) && (pair.StartsWith("Табельний")))
+                       s = pair.Substring(16, 24).Trim();
+                });
+          
+            if (s.Length > 0) return s;
+            else return "XXXX";
+        }
+
+        private string GetPassword(string element)
+        {
+            //string key = Path.GetFileNameWithoutExtension(element);
+            //if (_passwords.ContainsKey(key))
+            //    return _passwords[key];
+            //WriteLog($"Пароль для {key} не обнаружен, использован пароль по умолчанию.");
+            //return "123qaz";
+
+            string pass = string.Empty;
+            string key = Path.GetFileNameWithoutExtension(element);
+            if (_passwords.ContainsKey(key))
+                pass = _passwords[key];
+            if (string.IsNullOrEmpty(pass))
+            {
+                WriteLog($"Пароль для {key} не обнаружен, использован пароль по умолчанию.");
+                pass = "123qaz";
+            }
+            return pass;
+        }
+
+        private void FillPasswords()
+        {
+            if (File.Exists(_passwordFile))
+            {
+                //var file = File.ReadAllLines(_passwordFile, _defaultEnc);
+
+                //foreach (string pair in file)
+                //{
+                //    pair.Trim();
+                //    if (pair.Length > 0)
+                //    {
+                //        string key = pair.Substring(0, pair.Length - 9);
+                //        if (!_passwords.ContainsKey(key))
+                //        {
+                //            _passwords.Add(key, pair.Substring(pair.Length - 8));
+                //        }
+                //    }
+                //}
+
+                _passwords = File.ReadAllLines(_passwordFile, _defaultEnc)
+                        .Select(pair => pair.Trim())
+                        .Where(p => (p.Length >= 9))
+                        .Select(p => new { key = p.Substring(0, p.Length - 9), val = p.Substring(p.Length - 8) })
+                        .Where(p => (Regex.IsMatch(p.val, @"\d+", RegexOptions.IgnoreCase)))
+                        .GroupBy(p => p.key)                            
+                        .ToDictionary(p => p.Key, p => p.Select(i => i.val).FirstOrDefault());
+                
+                //File.WriteAllLines(Settings.Default.RemotePath+"\\passwords.txt", _passwords.Select(x => $"{x.Key} {x.Value}").ToArray());
+            }
+        }
+
+        private void btnStop_Click(object sender, EventArgs e)
+        {
+            _emergencyStop = true;
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (_imWorking)
+            {
+                if (MessageBox.Show("Прервать рассылку?", "Процесс не завершен", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    _emergencyStop = true;
+                e.Cancel = true;
+            }
+        }
+
+        void MinimizeToTray()
+        {
+            notifyIcon.Text = ProgramInfo.AssemblyTitle;
+            notifyIcon.Visible = true;
+            this.Hide();
+            minimizedToTray = true;
+        }
+
+        public void ShowWindow()
+        {
+            if (minimizedToTray)
+            {
+                notifyIcon.Visible = false;
+                this.Show();
+                this.WindowState = FormWindowState.Normal;
+                minimizedToTray = false;
+            }
+            else
+            {
+                WinApi.ShowToFront(this.Handle);
+            }
+        }
+
+        private void notifyIcon_MouseClick(object sender, MouseEventArgs e)
+        {
+            ShowWindow();
+        }
+
+        private void Form1_SizeChanged(object sender, EventArgs e)
+        {
+            if ((checkTray.Checked)&&(this.WindowState == FormWindowState.Minimized))
+               MinimizeToTray(); 
+        }
+    }
+    
+}
