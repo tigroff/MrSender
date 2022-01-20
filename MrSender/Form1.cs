@@ -309,49 +309,7 @@ namespace MrSender
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            if (!Directory.Exists(_defaultPath))
-            {
-                try
-                {
-                    Directory.CreateDirectory(_defaultPath);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error(ex);
-                }
-            }
-
-            var config = new NLog.Config.LoggingConfiguration();
-            var logfile = new NLog.Targets.FileTarget("logfile")
-                {
-                    FileName = Path.Combine(Settings.Default.RemotePath,$"Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log"),
-                    Layout = "${date:format=MM-dd-yyyy HH\\:MM\\:ss} - ${level} - ${message}",
-                    AutoFlush = true
-                };
-
-            RichTextBoxTarget target = new RichTextBoxTarget()
-            {
-                FormName = "Form1", // your winform class name
-                ControlName = "rtbLog", // your RichTextBox control/variable name
-                AutoScroll = true,
-                Layout = "${date:format=MM-dd-yyyy HH\\:MM\\:ss} - ${message}",
-                UseDefaultRowColoringRules = false,
-            };
-
-            target.RowColoringRules.Add
-                (new RichTextBoxRowColoringRule
-                    (
-                        "level >= LogLevel.Warning", // condition
-                        "Red", // font color
-                        "InactiveBorder" // back color
-                    )
-                );
-
-            config.AddTarget("richTextBox", target);
-            config.AddRule(LogLevel.Info, LogLevel.Fatal, logfile);
-            config.AddRule(LogLevel.Info, LogLevel.Fatal, target);
-            LogManager.Configuration = config;
-
+            
             if (NoSettingsError(Settings.Default.BotToken, "Токен telegram бота не заполнен!")
                 & NoSettingsError(Settings.Default.SmtpHost, "SMTP хост не заполнен!")
                 & NoSettingsError(Settings.Default.SmtpUser, "SMTP user не указан!")
