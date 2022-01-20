@@ -1,4 +1,6 @@
 ﻿using MrSender.Properties;
+using NLog;
+using NLog.Windows.Forms;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Security;
@@ -28,44 +30,20 @@ namespace MrSender
 
     public partial class Form1 : Form
     {
-        private const string _defaultPath = @"C:\Soft\Koresh";
-        //test_bot - "1846625231:AAHEHYdFs6gFp-anJwIvUKId2tQ9Q0Bdc9E"
-        //utn_bot - "683170386:AAHyiFXI8Uhkyv8NITbz6Py6V-Fp_yrr7Fs"
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+        private string _defaultPath = Path.Combine(@"C:\","Soft","Koresh");
         private TelegramBotClient _bot;
         private string[] _fileList;
         private Dictionary<string, string> _passwords = new Dictionary<string, string>();
-        private string _passwordFile = Settings.Default.RemotePath + "\\passwords.cfg";
-        private bool _emergencyStop = false;
-        private bool _imWorking = false;
+        private string _passwordFile = Path.Combine(Settings.Default.RemotePath,"passwords.cfg");
+        private bool _emergencyStop, _imWorking, _canWriteToPath = false;
         bool minimizedToTray;
         private HttpClient _client;
         private HttpClientHandler handler;
         private WebProxy proxy;
-        private string _logFile = $"{Settings.Default.RemotePath}\\Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log";
+        //private string _logFile = Path.Combine(Settings.Default.RemotePath, $"Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log");
         private Encoding _defaultEnc = Encoding.GetEncoding("windows-1251");
-        private bool _canWriteToPath = false;
 
-        //public static bool IsValidEmail(string email)
-        //{
-        //    if (!MailAddress.TryCreate(email, out var mailAddress))
-        //        return false;
-
-        //    // And if you want to be more strict:
-        //    var hostParts = mailAddress.Host.Split('.');
-        //    if (hostParts.Length == 1)
-        //        return false; // No dot.
-        //    if (hostParts.Any(p => p == string.Empty))
-        //        return false; // Double dot.
-        //    if (hostParts[^1].Length < 2)
-        //        return false; // TLD only one letter.
-
-        //    if (mailAddress.User.Contains(' '))
-        //        return false;
-        //    if (mailAddress.User.Split('.').Any(p => p == string.Empty))
-        //        return false; // Double dot or dot at end of user part.
-
-        //    return true;
-        //}
 
         protected override void WndProc(ref Message message)
         {
@@ -108,40 +86,16 @@ namespace MrSender
             }
         }
 
-        private void WriteLog(string text)
-        {
-            AppendLog($"{DateTime.Now} - {text}{Environment.NewLine}");
-        }
-
-        private void WriteLog(string pernr, string text)
-        {
-            AppendLog($"{DateTime.Now} - т.н.{pernr} - {text}{Environment.NewLine}");
-        }
-
-        private void AppendLog(string text)
-        {
-            LogBox.Text += text;
-            if (_canWriteToPath)
-            {
-                File.AppendAllText(_logFile, text, _defaultEnc); 
-            }
-            if (checkBoxLog.Checked)
-            {
-                LogBox.SelectionStart = LogBox.Text.Length;
-                LogBox.ScrollToCaret(); 
-            }
-        }
-
         private async Task SendMessage(string pernr, long chatId, string text)
         {
             try
             {
                 await _bot.SendTextMessageAsync(chatId, text, ParseMode.Html);
-                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - сообщение успешно отправлено");
+                if (!checkLog.Checked) Logger.Info($"{PernrName(pernr)} - {chatId.ToString()} - сообщение успешно отправлено");
             }
             catch (Exception er)
             {
-                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message}");
+                Logger.Error($"{PernrName(pernr)} - {chatId.ToString()} - {er.Message}");
             }
         }
 
@@ -158,11 +112,11 @@ namespace MrSender
                     //caption: "Nice Picture"
                     );
                 }
-                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - файл успешно отправлен"); 
+                if (!checkLog.Checked) Logger.Info($"{PernrName(pernr)} - {chatId.ToString()} - файл успешно отправлен"); 
             }
             catch (Exception er)
             {
-                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message}");
+                Logger.Error($"{PernrName(pernr)} - {chatId.ToString()} - {er.Message}");
             }
         }
 
@@ -179,11 +133,11 @@ namespace MrSender
                         photo: memStream
                     );
                 }
-                if (!checkLog.Checked) WriteLog(PernrName(pernr), $"{chatId.ToString()} - изображение успешно отправлено");
+                if (!checkLog.Checked) Logger.Info($"{PernrName(pernr)} - {chatId.ToString()} - изображение успешно отправлено");
             }
             catch (Exception er)
             {
-                WriteLog(PernrName(pernr), $"{chatId.ToString()} - {er.Message} {er.InnerException?.InnerException?.Message}");
+                Logger.Error($"{PernrName(pernr)} - {chatId.ToString()} - {er.Message} {er.InnerException?.InnerException?.Message}");
             }
         }
 
@@ -200,11 +154,9 @@ namespace MrSender
             "Гарного дня!";
 
             if (!string.IsNullOrWhiteSpace(textMsg.Text)) body += $"<br><br>P.S. {textMsg.Text}";
-#if DEBUG
-            string subj = PernrName(element);
-#else
+
+            //string subj = PernrName(element);
             string subj = AttachmentName(element); 
-#endif
 
             var client = new SmtpClient();
             var message = new MailMessage();
@@ -216,11 +168,10 @@ namespace MrSender
             client.Timeout = 10000;
 
             message.From = new MailAddress(Settings.Default.SmptFrom, "ПАТ 'Укртатнафта'", Encoding.Default);
-#if DEBUG
-            message.To.Add(new MailAddress("koreshock@ukrtatnafta.com"));
-#else
+
+            //message.To.Add(new MailAddress("koreshock@ukrtatnafta.com"));
             message.To.Add(new MailAddress(Path.GetFileNameWithoutExtension(element).Trim()));
-#endif
+
 
             message.Subject = subj;
             message.IsBodyHtml = true;
@@ -230,17 +181,13 @@ namespace MrSender
 
             try
             {
-#if !DEBUG
                 await client.SendMailAsync(message);
-#endif
-                if (!checkLog.Checked) WriteLog(PernrName(element), $"{message.To} - письмо успешно отправлено");
-#if !DEBUG
+                if (!checkLog.Checked) Logger.Info($"{PernrName(element)} - {message.To} - письмо успешно отправлено");
                 await Task.Delay(Convert.ToInt16(1000 / mailCount.Value));
-#endif
             }
             catch (Exception ex)
             {
-                WriteLog(PernrName(element), $"{ex.Message}");
+                Logger.Error($"{PernrName(element)} - {ex.Message}");
             }
             finally
             {
@@ -257,7 +204,7 @@ namespace MrSender
             }
             catch
             {
-                WriteLog($"Невозможно удалить файл {element}");
+                Logger.Error($"Невозможно удалить файл {element}");
             }
         }
 
@@ -292,13 +239,13 @@ namespace MrSender
             }
             catch (Exception er)
             {
-                WriteLog(PernrName(element),er.Message);
+                Logger.Error($"{PernrName(element)} - {er.Message}");
             }
         }
 
-        private async void btnSend_Click(object sender, EventArgs e)
+        private async void BtnSend_Click(object sender, EventArgs e)
         {
-            btnSend.Enabled = false;
+            BtnSend.Enabled = false;
             btnStop.Enabled = true;
             btnReload.Enabled = false;
             _imWorking = true;
@@ -310,6 +257,12 @@ namespace MrSender
             {
                 foreach (string element in _fileList)
                 {
+                    if (!File.Exists(element))
+                    {
+                        Logger.Error($"{element} не найден.");
+                        continue;
+                    }
+
                     if (!_emergencyStop)
                     {
                         if (element.Contains("@"))
@@ -333,19 +286,19 @@ namespace MrSender
             }
             catch (Exception er)
             {
-                WriteLog(er.Message);
+                Logger.Error(er.Message);
             }
 
 
             if (!_emergencyStop)
             {
-                WriteLog("<Конец рассылки>");
+                Logger.Info("<Конец рассылки>");
                 DeleteFile(_passwordFile);
             }
             else
             {
                 Array.Clear(_fileList, 0, total);
-                WriteLog("<Рассылка прервана пользователем>");
+                Logger.Warn("<Рассылка прервана пользователем>");
             }
             _passwords.Clear();
             _emergencyStop = false;
@@ -356,7 +309,49 @@ namespace MrSender
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+            if (!Directory.Exists(_defaultPath))
+            {
+                try
+                {
+                    Directory.CreateDirectory(_defaultPath);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex);
+                }
+            }
+
+            var config = new NLog.Config.LoggingConfiguration();
+            var logfile = new NLog.Targets.FileTarget("logfile")
+                {
+                    FileName = Path.Combine(Settings.Default.RemotePath,$"Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log"),
+                    Layout = "${date:format=MM-dd-yyyy HH\\:MM\\:ss} - ${level} - ${message}",
+                    AutoFlush = true
+                };
+
+            RichTextBoxTarget target = new RichTextBoxTarget()
+            {
+                FormName = "Form1", // your winform class name
+                ControlName = "rtbLog", // your RichTextBox control/variable name
+                AutoScroll = true,
+                Layout = "${date:format=MM-dd-yyyy HH\\:MM\\:ss} - ${message}",
+                UseDefaultRowColoringRules = false,
+            };
+
+            target.RowColoringRules.Add
+                (new RichTextBoxRowColoringRule
+                    (
+                        "level >= LogLevel.Warning", // condition
+                        "Red", // font color
+                        "InactiveBorder" // back color
+                    )
+                );
+
+            config.AddTarget("richTextBox", target);
+            config.AddRule(LogLevel.Info, LogLevel.Fatal, logfile);
+            config.AddRule(LogLevel.Info, LogLevel.Fatal, target);
+            LogManager.Configuration = config;
+
             if (NoSettingsError(Settings.Default.BotToken, "Токен telegram бота не заполнен!")
                 & NoSettingsError(Settings.Default.SmtpHost, "SMTP хост не заполнен!")
                 & NoSettingsError(Settings.Default.SmtpUser, "SMTP user не указан!")
@@ -366,13 +361,13 @@ namespace MrSender
                 LoadFiles();
                 _canWriteToPath = DirectoryHasPermission(RemotePath.Text, FileSystemRights.Write);
                 if (!_canWriteToPath) 
-                    WriteLog($"Нет прав записи в каталог {RemotePath.Text}!"); 
+                    Logger.Error($"Нет прав записи в каталог {RemotePath.Text}!"); 
             }
             else
             {
                 btnReload.Enabled = false;
                 btnReload.Enabled = false;
-                btnSend.Enabled = false;
+                BtnSend.Enabled = false;
             }
         }
 
@@ -380,7 +375,7 @@ namespace MrSender
         {
             if (string.IsNullOrWhiteSpace(element))
             {
-                WriteLog($"{message} Рассылка невозможна.");
+                Logger.Error($"{message} Рассылка невозможна.");
                 return false;
             }
             return true;
@@ -399,8 +394,8 @@ namespace MrSender
                 }
                 catch
                 {
-                    WriteLog($"Невозможно создать каталог {RemotePath.Text}. Обратитесь к системному администратору.");
-                    RemotePath.Text = "C:\\";
+                    Logger.Error($"Невозможно создать каталог {RemotePath.Text}. Обратитесь к системному администратору.");
+                    RemotePath.Text = "C:";
                 };
             }
             
@@ -418,12 +413,12 @@ namespace MrSender
 
             if (_fileList.Length > 0)
             {
-                btnSend.Enabled = true;
+                BtnSend.Enabled = true;
                 toolStripStatusLabel1.Text = string.Concat(_fileList.Length, " файла(ов) для рассылки.");
             }
             else
             {
-                btnSend.Enabled = false;
+                BtnSend.Enabled = false;
                 toolStripStatusLabel1.Text = "Нет файлов для рассылки.";
             }
         }
@@ -449,23 +444,25 @@ namespace MrSender
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex);
+            }
             return false;
         }
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            //if ((LogBox.Text.Length > 0) && (DirectoryHasPermission(RemotePath.Text, FileSystemRights.Write)))
-            //    File.WriteAllText($"{RemotePath.Text}\\Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log", LogBox.Text);
+            LogManager.Shutdown();
             Settings.Default.Save();
         }
 
-        private void btnReload_Click(object sender, EventArgs e)
+        private void BtnReload_Click(object sender, EventArgs e)
         {
             LoadFiles();
         }
 
-        private void btnPath_Click(object sender, EventArgs e)
+        private void BtnPath_Click(object sender, EventArgs e)
         {
             folderBrowser.ShowDialog();
             RemotePath.Text = folderBrowser.SelectedPath;
@@ -506,9 +503,11 @@ namespace MrSender
                 gfx.RotateTransform(-Math.Atan(helper.Page.Height / helper.Page.Width) * 180 / Math.PI);
                 gfx.TranslateTransform(-helper.Page.Width / 2, -helper.Page.Height / 2);
 
-                var format = new XStringFormat();
-                format.Alignment = XStringAlignment.Near;
-                format.LineAlignment = XLineAlignment.Near;
+                var format = new XStringFormat
+                {
+                    Alignment = XStringAlignment.Near,
+                    LineAlignment = XLineAlignment.Near
+                };
 
                 XBrush brush = new XSolidBrush(XColor.FromArgb(40, 255, 0, 0));
 
@@ -527,9 +526,6 @@ namespace MrSender
                 securitySettings.PermitFullQualityPrint = true;
                 securitySettings.PermitModifyDocument = false;
                 securitySettings.PermitPrint = true;
-
-                //filename = AttachmentName(element);
-                //document.Save(filename);
 
                 document.Save(stream);
             }
@@ -552,7 +548,7 @@ namespace MrSender
             }
             catch (Exception er)
             {
-                WriteLog(er.Message);
+                Logger.Error(er.Message);
             }
           
             if (s.Length > 0) return (char.ToUpper(s[0]) + s.Substring(1));
@@ -569,7 +565,7 @@ namespace MrSender
                        s = pair.Substring(16, 24).Trim();
                 });
           
-            if (s.Length > 0) return s;
+            if (s.Length > 0) return "т.н."+s;
             else return "XXXX";
         }
 
@@ -587,7 +583,7 @@ namespace MrSender
                 pass = _passwords[key];
             if (string.IsNullOrEmpty(pass))
             {
-                WriteLog($"Пароль для {key} не обнаружен, использован пароль по умолчанию.");
+                Logger.Warn($"Пароль для {key} не обнаружен, использован пароль по умолчанию.");
                 pass = "123qaz";
             }
             return pass;
@@ -597,21 +593,6 @@ namespace MrSender
         {
             if (File.Exists(_passwordFile))
             {
-                //var file = File.ReadAllLines(_passwordFile, _defaultEnc);
-
-                //foreach (string pair in file)
-                //{
-                //    pair.Trim();
-                //    if (pair.Length > 0)
-                //    {
-                //        string key = pair.Substring(0, pair.Length - 9);
-                //        if (!_passwords.ContainsKey(key))
-                //        {
-                //            _passwords.Add(key, pair.Substring(pair.Length - 8));
-                //        }
-                //    }
-                //}
-
                 _passwords = File.ReadAllLines(_passwordFile, _defaultEnc)
                         .Select(pair => pair.Trim())
                         .Where(p => (p.Length >= 9))
@@ -619,12 +600,10 @@ namespace MrSender
                         .Where(p => (Regex.IsMatch(p.val, @"\d+", RegexOptions.IgnoreCase)))
                         .GroupBy(p => p.key)                            
                         .ToDictionary(p => p.Key, p => p.Select(i => i.val).FirstOrDefault());
-                
-                //File.WriteAllLines(Settings.Default.RemotePath+"\\passwords.txt", _passwords.Select(x => $"{x.Key} {x.Value}").ToArray());
             }
         }
 
-        private void btnStop_Click(object sender, EventArgs e)
+        private void BtnStop_Click(object sender, EventArgs e)
         {
             _emergencyStop = true;
         }
@@ -662,7 +641,7 @@ namespace MrSender
             }
         }
 
-        private void notifyIcon_MouseClick(object sender, MouseEventArgs e)
+        private void NotifyIcon_MouseClick(object sender, MouseEventArgs e)
         {
             ShowWindow();
         }

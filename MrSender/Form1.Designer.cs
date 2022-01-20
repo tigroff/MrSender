@@ -30,7 +30,7 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
-            this.btnSend = new System.Windows.Forms.Button();
+            this.BtnSend = new System.Windows.Forms.Button();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
@@ -40,7 +40,6 @@
             this.btnStop = new System.Windows.Forms.Button();
             this.btnReload = new System.Windows.Forms.Button();
             this.groupBox5 = new System.Windows.Forms.GroupBox();
-            this.LogBox = new System.Windows.Forms.TextBox();
             this.tabPage3 = new System.Windows.Forms.TabPage();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
             this.mailCount = new System.Windows.Forms.NumericUpDown();
@@ -74,7 +73,7 @@
             this.label3 = new System.Windows.Forms.Label();
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.folderBrowser = new System.Windows.Forms.FolderBrowserDialog();
-            this.checkBoxLog = new System.Windows.Forms.CheckBox();
+            this.rtbLog = new System.Windows.Forms.RichTextBox();
             this.statusStrip1.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.tabControl1.SuspendLayout();
@@ -90,16 +89,16 @@
             ((System.ComponentModel.ISupportInitialize)(this.ProxyPort)).BeginInit();
             this.SuspendLayout();
             // 
-            // btnSend
+            // BtnSend
             // 
-            this.btnSend.Enabled = false;
-            this.btnSend.Location = new System.Drawing.Point(391, 277);
-            this.btnSend.Name = "btnSend";
-            this.btnSend.Size = new System.Drawing.Size(75, 23);
-            this.btnSend.TabIndex = 0;
-            this.btnSend.Text = "&Отправить";
-            this.btnSend.UseVisualStyleBackColor = true;
-            this.btnSend.Click += new System.EventHandler(this.btnSend_Click);
+            this.BtnSend.Enabled = false;
+            this.BtnSend.Location = new System.Drawing.Point(391, 277);
+            this.BtnSend.Name = "BtnSend";
+            this.BtnSend.Size = new System.Drawing.Size(75, 23);
+            this.BtnSend.TabIndex = 0;
+            this.BtnSend.Text = "&Отправить";
+            this.BtnSend.UseVisualStyleBackColor = true;
+            this.BtnSend.Click += new System.EventHandler(this.BtnSend_Click);
             // 
             // statusStrip1
             // 
@@ -148,12 +147,11 @@
             // 
             // tabPage1
             // 
-            this.tabPage1.Controls.Add(this.checkBoxLog);
             this.tabPage1.Controls.Add(this.btnStop);
             this.tabPage1.Controls.Add(this.btnReload);
             this.tabPage1.Controls.Add(this.groupBox5);
             this.tabPage1.Controls.Add(this.groupBox1);
-            this.tabPage1.Controls.Add(this.btnSend);
+            this.tabPage1.Controls.Add(this.BtnSend);
             this.tabPage1.Location = new System.Drawing.Point(4, 22);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
@@ -171,7 +169,7 @@
             this.btnStop.TabIndex = 5;
             this.btnStop.Text = "О&становить";
             this.btnStop.UseVisualStyleBackColor = true;
-            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            this.btnStop.Click += new System.EventHandler(this.BtnStop_Click);
             // 
             // btnReload
             // 
@@ -181,27 +179,17 @@
             this.btnReload.TabIndex = 4;
             this.btnReload.Text = "О&бновить";
             this.btnReload.UseVisualStyleBackColor = true;
-            this.btnReload.Click += new System.EventHandler(this.btnReload_Click);
+            this.btnReload.Click += new System.EventHandler(this.BtnReload_Click);
             // 
             // groupBox5
             // 
-            this.groupBox5.Controls.Add(this.LogBox);
+            this.groupBox5.Controls.Add(this.rtbLog);
             this.groupBox5.Location = new System.Drawing.Point(3, 103);
             this.groupBox5.Name = "groupBox5";
             this.groupBox5.Size = new System.Drawing.Size(466, 168);
             this.groupBox5.TabIndex = 3;
             this.groupBox5.TabStop = false;
             this.groupBox5.Text = "&Лог рассылки";
-            // 
-            // LogBox
-            // 
-            this.LogBox.Location = new System.Drawing.Point(6, 20);
-            this.LogBox.Multiline = true;
-            this.LogBox.Name = "LogBox";
-            this.LogBox.ReadOnly = true;
-            this.LogBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.LogBox.Size = new System.Drawing.Size(454, 142);
-            this.LogBox.TabIndex = 0;
             // 
             // tabPage3
             // 
@@ -539,7 +527,7 @@
             this.btnPath.TabIndex = 9;
             this.btnPath.Text = "&Выбор";
             this.btnPath.UseVisualStyleBackColor = true;
-            this.btnPath.Click += new System.EventHandler(this.btnPath_Click);
+            this.btnPath.Click += new System.EventHandler(this.BtnPath_Click);
             // 
             // ProxyHost
             // 
@@ -562,24 +550,22 @@
             // notifyIcon
             // 
             this.notifyIcon.Icon = ((System.Drawing.Icon)(resources.GetObject("notifyIcon.Icon")));
-            this.notifyIcon.MouseClick += new System.Windows.Forms.MouseEventHandler(this.notifyIcon_MouseClick);
+            this.notifyIcon.MouseClick += new System.Windows.Forms.MouseEventHandler(this.NotifyIcon_MouseClick);
             // 
             // folderBrowser
             // 
             this.folderBrowser.SelectedPath = global::MrSender.Properties.Settings.Default.RemotePath;
             // 
-            // checkBoxLog
+            // rtbLog
             // 
-            this.checkBoxLog.AutoSize = true;
-            this.checkBoxLog.Checked = true;
-            this.checkBoxLog.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxLog.Location = new System.Drawing.Point(171, 281);
-            this.checkBoxLog.Name = "checkBoxLog";
-            this.checkBoxLog.Size = new System.Drawing.Size(116, 17);
-            this.checkBoxLog.TabIndex = 6;
-            this.checkBoxLog.Text = "сле&дить за логом";
-            this.checkBoxLog.UseVisualStyleBackColor = true;
-            this.checkBoxLog.Visible = false;
+            this.rtbLog.Enabled = false;
+            this.rtbLog.Location = new System.Drawing.Point(6, 19);
+            this.rtbLog.Name = "rtbLog";
+            this.rtbLog.ReadOnly = true;
+            this.rtbLog.ScrollBars = System.Windows.Forms.RichTextBoxScrollBars.Vertical;
+            this.rtbLog.Size = new System.Drawing.Size(454, 143);
+            this.rtbLog.TabIndex = 1;
+            this.rtbLog.Text = "";
             // 
             // Form1
             // 
@@ -604,9 +590,7 @@
             this.groupBox1.PerformLayout();
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
-            this.tabPage1.PerformLayout();
             this.groupBox5.ResumeLayout(false);
-            this.groupBox5.PerformLayout();
             this.tabPage3.ResumeLayout(false);
             this.groupBox4.ResumeLayout(false);
             this.groupBox4.PerformLayout();
@@ -625,7 +609,7 @@
 
         #endregion
 
-        private System.Windows.Forms.Button btnSend;
+        private System.Windows.Forms.Button BtnSend;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
         private System.Windows.Forms.GroupBox groupBox1;
@@ -643,7 +627,6 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.NumericUpDown ProxyPort;
         private System.Windows.Forms.GroupBox groupBox5;
-        private System.Windows.Forms.TextBox LogBox;
         private System.Windows.Forms.GroupBox groupBox4;
         private System.Windows.Forms.GroupBox groupBox3;
         private System.Windows.Forms.CheckBox checkLog;
@@ -669,7 +652,7 @@
         private System.Windows.Forms.Button btnStop;
         private System.Windows.Forms.NotifyIcon notifyIcon;
         private System.Windows.Forms.CheckBox checkTray;
-        private System.Windows.Forms.CheckBox checkBoxLog;
+        private System.Windows.Forms.RichTextBox rtbLog;
     }
 }
 
