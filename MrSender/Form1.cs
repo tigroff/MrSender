@@ -325,7 +325,7 @@ namespace MrSender
             var logfile = new NLog.Targets.FileTarget("logfile")
                 {
                     FileName = Path.Combine(Settings.Default.RemotePath,$"Лог рассылки {DateTime.Now:yyyyddMM_HH_mm}.log"),
-                    Layout = "${date:format=MM-dd-yyyy HH\\:mm\\:ss} - ${level} - ${message}",
+                    Layout = "${date:format=dd-MM-yyyy HH\\:mm\\:ss} - ${level} - ${message}",
                     AutoFlush = true
                 };
 
@@ -334,7 +334,7 @@ namespace MrSender
                 FormName = "Form1", // your winform class name
                 ControlName = "rtbLog", // your RichTextBox control/variable name
                 AutoScroll = true,
-                Layout = "${date:format=MM-dd-yyyy HH\\:mm\\:ss} - ${message}",
+                Layout = "${date:format=dd-MM-yyyy HH\\:mm\\:ss} - ${message}",
                 UseDefaultRowColoringRules = false,
             };
 
